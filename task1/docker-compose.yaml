@@ -1,0 +1,47 @@
+name: lab3-task1
+
+services:
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    container_name: lab3-task1-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: lab3-task1-app:1.0.0
+    container_name: lab3-task1-app
+    environment:
+      OTEL_SERVICE_NAME: lab3-task1-dice
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=lab,service.version=1.0.0,lab.group=13
+      OTEL_TRACES_EXPORTER: otlp
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_PYTHON_LOG_CORRELATION: "true"
+    ports:
+      - "8080:8080"
+    depends_on:
+      jaeger:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
